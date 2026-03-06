@@ -1,2 +1,2 @@
 # Habit-Tracker
-Its is an website which track our dailuy habit.
+Its is an website which track our daily habit.
