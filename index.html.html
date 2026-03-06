@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-start: #1f2f38;
+            --bg-end: #3a4a57;
+            --card-bg: rgba(255,255,255,0.15);
+            --text-color: #e0e6ed;
+            --accent: #4f7ef8;
+            --accent-light: #6cb1ff;
+            --accent-dark: #2a5ccb;
+            --shadow: rgba(0,0,0,0.4);
+            --font: 'Inter', sans-serif;
+        }
+        body.dark {
+            --bg-start: #0b131a;
+            --bg-end: #1a2431;
+            --card-bg: rgba(30,41,59,0.6);
+            --text-color: #f1f5f9;
+            --accent: #4f7ef8;
+            --accent-light: #6cb1ff;
+            --shadow: rgba(0,0,0,0.5);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: var(--font);
+            color: var(--text-color);
+            background: linear-gradient(135deg, var(--bg-start) 0%, var(--bg-end) 100%);
+            background-size: 400% 400%;
+            min-height: 100vh;
+            transition: background .4s, color .4s;
+            animation: bgShift 25s infinite alternate;
+        }
+        @keyframes bgShift { 0% { background-position: 0% 50%; } 100% { background-position: 100% 50%; } }
+        nav {
+            backdrop-filter: blur(12px);
+            background: rgba(255,255,255,0.1);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px var(--shadow);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            border-bottom: 1px solid rgba(255,255,255,0.15);
+        }
+        nav h1 { font-weight: 600; font-size: 1.4rem; }
+        nav .toggle { cursor: pointer; font-size: 1.1rem; }
+        main { padding: 100px 30px 60px; display: flex; flex-wrap: wrap; gap: 30px; justify-content: center; }
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(18px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 8px 32px var(--shadow);
+            width: 100%;
+            max-width: 500px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .form-group { margin-bottom: 18px; }
+        label { display: block; font-size: .9rem; margin-bottom: 6px; }
+        input[type=date], input[type=number], input[type=text] {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.1);
+            font-size: 1rem;
+            color: var(--text-color);
+            transition: border .3s;
+        }
+        input:focus { outline: none; border-color: var(--accent); background: rgba(255,255,255,0.2); }
+        .btn {
+            display: inline-block;
+            padding: 12px 22px;
+            border-radius: 24px;
+            background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform .3s, box-shadow .3s;
+            border: none;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px var(--shadow); }
+        .stats { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+        .stat-card {
+            flex: 1 1 140px;
+            text-align: center;
+            padding: 20px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+            color: #fff;
+            box-shadow: 0 8px 32px var(--shadow);
+        }
+        .stat-card .value { font-size: 1.8rem; font-weight: 600; }
+        .progress-wrapper { margin-top: 20px; }
+        .circle-progress { position: relative; width: 100px; height: 100px; margin: 10px auto; }
+        .circle-progress svg { transform: rotate(-90deg); }
+        .circle-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        .progress-bar { height: 18px; background: var(--accent); border-radius: 9px; width: 0; transition: width .6s; }
+        .tabs { display: flex; margin-bottom: 20px; border-radius: 12px; background: rgba(255,255,255,0.1); padding: 4px; }
+        .tab-btn {
+            flex: 1;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-color);
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .tab-btn.active { background: var(--accent); color: #fff; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .fab { position: fixed; bottom: 30px; right: 30px; background: linear-gradient(135deg, var(--accent-dark), var(--accent)); color: #fff; width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; box-shadow: 0 8px 24px var(--shadow); cursor: pointer; border: none; }
+        .credit { position: fixed; bottom: 8px; right: 8px; font-size: .6rem; color: var(--text-color); opacity: .4; }
+        p { margin: 8px 0; }
+    </style>
+</head>
+<body>
+    <nav>
+        <h1>Focus Tracker</h1>
+        <div class="toggle" id="modeToggle">🌙</div>
+    </nav>
+    <main>
+        <div class="card">
+            <h2>Log Habit</h2>
+            <form id="habitForm">
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="dateInput" required>
+                </div>
+                <div class="form-group">
+                    <label>Study Hours</label>
+                    <input type="number" id="studyInput" min="0" max="24" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label>Coding Hours</label>
+                    <input type="number" id="codingInput" min="0" max="24" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label>Sleep Hours</label>
+                    <input type="number" id="sleepInput" min="0" max="24" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label>Reading Hours</label>
+                    <input type="number" id="readingInput" min="0" max="24" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label>Mobile Hours</label>
+                    <input type="number" id="mobileInput" min="0" max="24" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label>Study Goal</label>
+                    <input type="number" id="studyGoal" min="0" max="24" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label>Coding Goal</label>
+                    <input type="number" id="codingGoal" min="0" max="24" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label>Sleep Goal</label>
+                    <input type="number" id="sleepGoal" min="0" max="24" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label>Reading Goal</label>
+                    <input type="number" id="readingGoal" min="0" max="24" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label>Mobile Goal</label>
+                    <input type="number" id="mobileGoal" min="0" max="24" step="0.5">
+                </div>
+                <div class="form-group">
+                    <input type="checkbox" id="workoutInput"> <label for="workoutInput">Workout</label>
+                </div>
+                <div class="form-group">
+                    <input type="checkbox" id="noJunkInput"> <label for="noJunkInput">Avoid Sugar/Junk</label>
+                </div>
+                <div class="form-group">
+                    <input type="checkbox" id="meditationInput"> <label for="meditationInput">Meditation</label>
+                </div>
+                <div class="form-group">
+                    <label>Daily Goal</label>
+                    <input type="text" id="goalInput" placeholder="Your goal">
+                </div>
+                <button class="btn" type="submit">Save Habit</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+                <button class="tab-btn" data-tab="charts">Charts</button>
+            </div>
+
+            <div class="tab-content active" id="dashboardTab">
+                <div class="stats">
+                    <div class="stat-card">
+                        <div>📚</div>
+                        <div class="value" id="avgStudy">0h</div>
+                        <div>Study</div>
+                    </div>
+                    <div class="stat-card">
+                        <div>💻</div>
+                        <div class="value" id="avgCoding">0h</div>
+                        <div>Coding</div>
+                    </div>
+                    <div class="stat-card">
+                        <div>😴</div>
+                        <div class="value" id="avgSleep">0h</div>
+                        <div>Sleep</div>
+                    </div>
+                    <div class="stat-card" style="background:linear-gradient(135deg, #ff6b6b, #ff5252);">
+                        <div>🔥</div>
+                        <div class="value" id="streakValue">0</div>
+                        <div>Streak</div>
+                    </div>
+                </div>
+
+                <div style="text-align:center;margin:20px 0;font-size:1.2rem;">
+                    🎯 Overall Score: <span id="prodScore">0%</span>
+                </div>
+
+                <div class="progress-wrapper">
+                    <div style="text-align:center;margin-bottom:15px;">
+                        Today's Score: <span id="dailyScoreText">0%</span>
+                    </div>
+                    <div class="circle-progress">
+                        <svg width="100" height="100">
+                            <circle cx="50" cy="50" r="45" stroke-width="8" stroke="var(--accent)" fill="none"/>
+                            <circle cx="50" cy="50" r="45" stroke-width="8" stroke="var(--accent-light)" fill="none" stroke-dasharray="282.6" stroke-dashoffset="282.6" id="dailyCircleFill"/>
+                        </svg>
+                        <div class="circle-text" id="dailyScore">0%</div>
+                    </div>
+                    <div class="progress-bar" id="prodBar"></div>
+                </div>
+
+                <div style="text-align:center;margin-top:20px;font-weight:600;" id="motivMsg">Log your first habit!</div>
+
+                <h3 style="margin-top:20px;">Daily Summary</h3>
+                <p>Score: <span id="todayScore">0%</span></p>
+                <p>Completed: <span id="habitsCompleted">0/8</span></p>
+                <p>📚 Study: <span id="studyProgress">0h/0h</span></p>
+                <p>💻 Coding: <span id="codingProgress">0h/0h</span></p>
+                <p>😴 Sleep: <span id="sleepProgress">0h/0h</span></p>
+                <p>📖 Reading: <span id="readingProgress">0h/0h</span></p>
+                <p>📱 Mobile: <span id="mobileProgress">0h/0h</span></p>
+                <p>🏋️ Workout: <span id="workoutStatus">No</span></p>
+                <p>🍎 Junk: <span id="noJunkStatus">No</span></p>
+                <p>🧘 Meditation: <span id="meditationStatus">No</span></p>
+            </div>
+
+            <div class="tab-content" id="chartsTab">
+                <canvas id="weekChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Lookup Day</h3>
+            <input type="date" id="lookupDate">
+            <button class="btn" id="lookupBtn">View</button>
+            <div id="lookupResult" style="margin-top:15px;"></div>
+        </div>
+
+        <div class="card">
+            <h3>Summary</h3>
+            <p id="weeklySummary">No data</p>
+            <p id="monthlySummary">No data</p>
+        </div>
+    </main>
+
+    <button class="fab" id="fab">↑</button>
+    <div class="credit">Focus Tracker by Aniruddh</div>
+
+    <script>
+        function playSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = 800;
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.1);
+            } catch(e) {}
+        }
+
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                speechSynthesis.speak(utterance);
+            }
+        }
+
+        const today = new Date().toISOString().split('T')[0];
+        const form = document.getElementById('habitForm');
+        const dateInput = document.getElementById('dateInput');
+        const modeToggle = document.getElementById('modeToggle');
+        let weekChart;
+
+        dateInput.value = today;
+        document.getElementById('lookupDate').value = today;
+
+        if(localStorage.getItem('dark') === 'true') {
+            document.body.classList.add('dark');
+            modeToggle.textContent = '☀️';
+        }
+
+        modeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark');
+            const isDark = document.body.classList.contains('dark');
+            localStorage.setItem('dark', isDark);
+            modeToggle.textContent = isDark ? '☀️' : '🌙';
+        });
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            playSound();
+            const entry = {
+                date: dateInput.value,
+                study: +document.getElementById('studyInput').value || 0,
+                coding: +document.getElementById('codingInput').value || 0,
+                sleep: +document.getElementById('sleepInput').value || 0,
+                reading: +document.getElementById('readingInput').value || 0,
+                mobile: +document.getElementById('mobileInput').value || 0,
+                workout: document.getElementById('workoutInput').checked,
+                noJunk: document.getElementById('noJunkInput').checked,
+                meditation: document.getElementById('meditationInput').checked,
+                goal: document.getElementById('goalInput').value || '',
+                studyGoal: +document.getElementById('studyGoal').value || 0,
+                codingGoal: +document.getElementById('codingGoal').value || 0,
+                sleepGoal: +document.getElementById('sleepGoal').value || 0,
+                readingGoal: +document.getElementById('readingGoal').value || 0,
+                mobileGoal: +document.getElementById('mobileGoal').value || 0,
+                id: Date.now()
+            };
+
+            let habits = JSON.parse(localStorage.getItem('habits')) || [];
+            const idx = habits.findIndex(r => r.date === entry.date);
+            if(idx > -1) habits[idx] = entry;
+            else habits.push(entry);
+            localStorage.setItem('habits', JSON.stringify(habits));
+
+            form.reset();
+            dateInput.value = today;
+            updateDash();
+            if(document.getElementById('chartsTab').classList.contains('active')) updateChart();
+        });
+
+        function calculateScore(records) {
+            let s = 0;
+            const avg = (prop) => records.reduce((a,b) => a+b[prop], 0) / records.length;
+            if(avg('study') > 2) s += 20;
+            if(avg('coding') > 1) s += 20;
+            if(records.filter(r => r.workout).length > 0) s += 20;
+            if(avg('mobile') < 3) s += 20;
+            if(avg('sleep') > 7) s += 20;
+            if(records.filter(r => r.noJunk).length > 0) s += 10;
+            if(records.filter(r => r.meditation).length > 0) s += 10;
+            return Math.round(Math.min(s, 100));
+        }
+
+        function calculateStreak(records) {
+            if(records.length === 0) return 0;
+            const dates = new Set(records.map(r => r.date).sort());
+            if(!dates.has(today)) return 0;
+            let streak = 0;
+            let d = new Date(today);
+            while(dates.has(d.toISOString().split('T')[0])) {
+                streak++;
+                d.setDate(d.getDate() - 1);
+            }
+            return streak;
+        }
+
+        function countHabits(entry) {
+            let c = 0;
+            if(entry.study > 0) c++;
+            if(entry.coding > 0) c++;
+            if(entry.sleep > 0) c++;
+            if(entry.reading > 0) c++;
+            if(entry.mobile >= 0) c++;
+            if(entry.workout) c++;
+            if(entry.noJunk) c++;
+            if(entry.meditation) c++;
+            return c;
+        }
+
+        function updateDash() {
+            const habits = JSON.parse(localStorage.getItem('habits')) || [];
+            if(habits.length === 0) {
+                document.getElementById('avgStudy').textContent = '0h';
+                document.getElementById('avgCoding').textContent = '0h';
+                document.getElementById('avgSleep').textContent = '0h';
+                document.getElementById('prodScore').textContent = '0%';
+                document.getElementById('dailyScoreText').textContent = '0%';
+                document.getElementById('todayScore').textContent = '0%';
+                return;
+            }
+
+            const avg = (arr) => (arr.reduce((a,b) => a+b, 0) / arr.length).toFixed(1);
+            document.getElementById('avgStudy').textContent = avg(habits.map(r => r.study)) + 'h';
+            document.getElementById('avgCoding').textContent = avg(habits.map(r => r.coding)) + 'h';
+            document.getElementById('avgSleep').textContent = avg(habits.map(r => r.sleep)) + 'h';
+
+            const last = habits[habits.length - 1];
+            const score = calculateScore(habits);
+            const daily = calculateScore([last]);
+            const streak = calculateStreak(habits);
+
+            document.getElementById('prodScore').textContent = score + '%';
+            document.getElementById('prodBar').style.width = score + '%';
+            document.getElementById('dailyScore').textContent = daily + '%';
+            document.getElementById('dailyScoreText').textContent = daily + '%';
+            document.getElementById('streakValue').textContent = streak;
+
+            const offset = 282.6 * (1 - daily / 100);
+            document.getElementById('dailyCircleFill').style.strokeDashoffset = offset;
+
+            document.getElementById('todayScore').textContent = daily + '%';
+            document.getElementById('habitsCompleted').textContent = countHabits(last) + '/8';
+            document.getElementById('studyProgress').textContent = last.study.toFixed(1) + 'h / ' + last.studyGoal.toFixed(1) + 'h';
+            document.getElementById('codingProgress').textContent = last.coding.toFixed(1) + 'h / ' + last.codingGoal.toFixed(1) + 'h';
+            document.getElementById('sleepProgress').textContent = last.sleep.toFixed(1) + 'h / ' + last.sleepGoal.toFixed(1) + 'h';
+            document.getElementById('readingProgress').textContent = last.reading.toFixed(1) + 'h / ' + last.readingGoal.toFixed(1) + 'h';
+            document.getElementById('mobileProgress').textContent = last.mobile.toFixed(1) + 'h / ' + last.mobileGoal.toFixed(1) + 'h';
+            document.getElementById('workoutStatus').textContent = last.workout ? '✓ Yes' : '✗ No';
+            document.getElementById('noJunkStatus').textContent = last.noJunk ? '✓ Yes' : '✗ No';
+            document.getElementById('meditationStatus').textContent = last.meditation ? '✓ Yes' : '✗ No';
+
+            // Speak productivity feedback
+            if(daily >= 60) {
+                speak('Very good');
+            } else {
+                speak('Work more');
+            }
+        }
+
+        function updateChart() {
+            const habits = JSON.parse(localStorage.getItem('habits')) || [];
+            if(habits.length === 0) return;
+            const last7 = habits.sort((a,b) => new Date(a.date) - new Date(b.date)).slice(-7);
+            const labels = last7.map(r => r.date.slice(5));
+            const data = last7.map(r => calculateScore([r]));
+
+            if(weekChart) weekChart.destroy();
+            const ctx = document.getElementById('weekChart').getContext('2d');
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(79, 126, 248, 0.4)');
+            gradient.addColorStop(1, 'rgba(79, 126, 248, 0.1)');
+            weekChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        label: 'Productivity Score',
+                        borderColor: '#4f7ef8',
+                        backgroundColor: gradient,
+                        borderWidth: 3,
+                        pointBackgroundColor: '#ffffff',
+                        pointBorderColor: '#4f7ef8',
+                        pointBorderWidth: 2,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: true, labels: { color: 'var(--text-color)' } },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: 'var(--text-color)' }
+                        },
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: 'var(--text-color)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                playSound();
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(tab + 'Tab').classList.add('active');
+                if(tab === 'charts') updateChart();
+            });
+        });
+
+        document.querySelectorAll('.btn, .fab').forEach(el => {
+            el.addEventListener('click', playSound);
+        });
+
+        document.getElementById('fab').addEventListener('click', () => {
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        });
+
+        document.getElementById('lookupBtn').addEventListener('click', () => {
+            playSound();
+            const d = document.getElementById('lookupDate').value;
+            if(!d) { alert('Select a date'); return; }
+            const habits = JSON.parse(localStorage.getItem('habits')) || [];
+            const found = habits.find(r => r.date === d);
+            const out = document.getElementById('lookupResult');
+            if(found) {
+                out.innerHTML = `<strong>${found.date}</strong><br>Study: ${found.study.toFixed(1)}/${found.studyGoal.toFixed(1)}h<br>Coding: ${found.coding.toFixed(1)}/${found.codingGoal.toFixed(1)}h<br>Sleep: ${found.sleep.toFixed(1)}/${found.sleepGoal.toFixed(1)}h<br>Reading: ${found.reading.toFixed(1)}/${found.readingGoal.toFixed(1)}h<br>Mobile: ${found.mobile.toFixed(1)}/${found.mobileGoal.toFixed(1)}h<br>Workout: ${found.workout?'Yes':'No'}<br>Junk: ${found.noJunk?'Yes':'No'}<br>Meditation: ${found.meditation?'Yes':'No'}`;
+            } else {
+                out.innerHTML = 'No data';
+            }
+        });
+
+        function summarize(habits, days) {
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - days + 1);
+            const filtered = habits.filter(r => new Date(r.date) >= cutoff);
+            if(filtered.length === 0) return 'No data';
+            const sum = (prop) => filtered.reduce((a,b) => a + b[prop], 0);
+            return `${days}d: Study ${sum('study').toFixed(1)}h, Code ${sum('coding').toFixed(1)}h, Sleep ${sum('sleep').toFixed(1)}h`;
+        }
+
+        function updateSummary() {
+            const habits = JSON.parse(localStorage.getItem('habits')) || [];
+            document.getElementById('weeklySummary').textContent = summarize(habits, 7);
+            document.getElementById('monthlySummary').textContent = summarize(habits, 30);
+        }
+
+        updateDash();
+        updateSummary();
+    </script>
+</body>
+</html>
